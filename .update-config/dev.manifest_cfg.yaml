@@ -1,0 +1,4 @@
+certificate: .update-config/dev.cert.der
+class-id: 7c8a5e6acbe54eeb9f06c3078f40efa8
+key_file: .update-config/dev.key.pem
+vendor-id: 7328ae316a9f49be84fe56a92a0b3afb
