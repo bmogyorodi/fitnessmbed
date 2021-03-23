@@ -20,9 +20,11 @@
 #include <string>
 #ifndef MBED_TEST_MODE
 #include "mbed.h"
+
+//Used to get gyroscope and accelerometer data
 #include "stm32l475e_iot01_gyro.h"
 #include "stm32l475e_iot01_accelero.h"
-//#include "stm32l475e_iot01_magneto.h"
+
 #include "kv_config.h"
 #include "mbed-cloud-client/MbedCloudClient.h" // Required for new MbedCloudClient()
 #include "factory_configurator_client.h"       // Required for fcc_* functions and FCC_* defines
@@ -51,19 +53,18 @@ static M2MResource* m2m_factory_reset_res;
 static SocketAddress sa;
 
 //
-static M2MResource* m2m_get_accx;
+static M2MResource* m2m_get_acc_gyro;
 static M2MResource* m2m_get_accy;
 static M2MResource* m2m_get_accz;
 static M2MResource* m2m_get_gyrox;
 static M2MResource* m2m_get_gyroy;
 static M2MResource* m2m_get_gyroz;
-/*static M2MResource* m2m_get_magx;
-static M2MResource* m2m_get_magy;
-static M2MResource* m2m_get_magz;*/
 
+
+//to store accelerometer and gyroscope data
 int16_t pAccDataXYZ[3] = {0};
 float pGyroDataXYZ[3] = {0};
-//int16_t pMagDataXYZ[3]={0};
+
 
 EventQueue queue(32 * EVENTS_EVENT_SIZE);
 Thread t;
@@ -77,6 +78,7 @@ void print_client_ids(void)
     printf("Device ID: %s\n\n", cloud_client->endpoint_info()->endpoint_name.c_str());
 }
 
+//not used debug function
 void value_increment(void)
 {
     value_increment_mutex.lock();
@@ -92,21 +94,12 @@ void read_ACCGYRO(void)
     BSP_ACCELERO_AccGetXYZ(pAccDataXYZ);
     //BSP_MAGNETO_GetXYZ(pMagDataXYZ);
 
-    //m2m_get_accx->set_value(pAccDataXYZ[0]);
-    //m2m_get_accy->set_value(pAccDataXYZ[1]);
-    //m2m_get_accz->set_value(pAccDataXYZ[2]);
-
-    //m2m_get_gyrox->set_value(pGyroDataXYZ[0]);
-    //m2m_get_gyroy->set_value(pGyroDataXYZ[1]);
-    //m2m_get_gyroz->set_value(pGyroDataXYZ[2]);
     char values[100];
     std::sprintf(values, "%d,%d,%d,%f,%f,%f?",pAccDataXYZ[0],pAccDataXYZ[1],pAccDataXYZ[2],pGyroDataXYZ[0],pGyroDataXYZ[1],pGyroDataXYZ[2]);
-    //string str(values);
-    m2m_get_accx->set_value((const uint8_t *)values,100);       // set_value();
-    /*m2m_get_magx->set_value(pMagDataXYZ[0]);
-    m2m_get_magy->set_value(pMagDataXYZ[1]);
-    m2m_get_magz->set_value(pMagDataXYZ[2]);*/
-    //printf(values);
+    //sending data on a single node in a char buffer of 100 characters, could be extended to containing more data
+    m2m_get_acc_gyro->set_value((const uint8_t *)values,100);       
+
+    //print incoming accelerometer and gyro scope readings
     printf("ACCELERO_X %d \n", pAccDataXYZ[0]);
     printf("ACCELERO_Y %d \n", pAccDataXYZ[1]);
     printf("ACCELERO_Z %d \n", pAccDataXYZ[2]);
@@ -116,9 +109,6 @@ void read_ACCGYRO(void)
     printf("GYRO_Y %f \n", pGyroDataXYZ[1]);
     printf("GYRO_Z %f \n", pGyroDataXYZ[2]);
 
-    /*printf("MAGNETO_X %" PRId64 "\n",m2m_get_magx->get_value_int());
-    printf("MAGNETO_Y %" PRId64 "\n",m2m_get_magy->get_value_int());
-    printf("MAGNETO_Z %" PRId64 "\n",m2m_get_magz->get_value_int());*/
 
     read_ACCGYRO_mutex.unlock();
 }
@@ -268,113 +258,18 @@ int main(void)
     printf("Create resources\n");
     M2MObjectList m2m_obj_list;
 
-    m2m_get_accx=M2MInterfaceFactory::create_resource(m2m_obj_list, 3200, 0, 4401,  M2MResourceInstance::STRING,  M2MBase::GET_PUT_ALLOWED);
-    if(m2m_get_accx->set_value(0) !=true)
+    //Registering m2m resource to send accelerometer and gyroscope data to pelion in one resource
+    m2m_get_acc_gyro=M2MInterfaceFactory::create_resource(m2m_obj_list, 3200, 0, 4401,  M2MResourceInstance::STRING,  M2MBase::GET_PUT_ALLOWED);
+    if(m2m_get_acc_gyro->set_value(0) !=true)
     {
-         printf("m2m_get_accx->set_value() failed\n");
+         printf("m2m_get_acc_gyro->set_value() failed\n");
          return -1;
     }
-    if (m2m_get_accx->set_value_updated_function(get_res_update)!=true){
-        printf("m2m_get_accx->set_value_updated_function() failed\n");
-        return -1;
-    }
-/*
-m2m_get_accy=M2MInterfaceFactory::create_resource(m2m_obj_list, 3200, 0, 4402,  M2MResourceInstance::INTEGER,  M2MBase::GET_PUT_ALLOWED);
-    if(m2m_get_accy->set_value(0) !=true)
-    {
-         printf("m2m_get_accy->set_value() failed\n");
-         return -1;
-    }
-    if (m2m_get_accy->set_value_updated_function(get_res_update)!=true){
-        printf("m2m_get_accy->set_value_updated_function() failed\n");
+    if (m2m_get_acc_gyro->set_value_updated_function(get_res_update)!=true){
+        printf("m2m_get_acc_gyro->set_value_updated_function() failed\n");
         return -1;
     }
 
-    m2m_get_accz=M2MInterfaceFactory::create_resource(m2m_obj_list, 3200, 0, 4403,  M2MResourceInstance::INTEGER,  M2MBase::GET_PUT_ALLOWED);
-    if(m2m_get_accz->set_value(0) !=true)
-    {
-         printf("m2m_get_accz->set_value() failed\n");
-         return -1;
-    }
-    if (m2m_get_accz->set_value_updated_function(get_res_update)!=true){
-        printf("m2m_get_accz->set_value_updated_function() failed\n");
-        return -1;
-    }
-
-    m2m_get_gyrox=M2MInterfaceFactory::create_resource(m2m_obj_list, 3200, 0, 4404,  M2MResourceInstance::FLOAT,  M2MBase::GET_PUT_ALLOWED);
-    if(m2m_get_gyrox->set_value(0) !=true)
-    {
-         printf("m2m_get_gyrox->set_value() failed\n");
-         return -1;
-    }
-    if (m2m_get_gyrox->set_value_updated_function(get_res_update)!=true){
-        printf("m2m_get_gyrox->set_value_updated_function() failed\n");
-        return -1;
-    }
-
-    m2m_get_gyroy=M2MInterfaceFactory::create_resource(m2m_obj_list, 3200, 0, 4405,  M2MResourceInstance::FLOAT,  M2MBase::GET_PUT_ALLOWED);
-    if(m2m_get_gyroy->set_value(0) !=true)
-    {
-         printf("m2m_get_gyroy->set_value() failed\n");
-         return -1;
-    }
-    if (m2m_get_gyroy->set_value_updated_function(get_res_update)!=true){
-        printf("m2m_get_gyroy->set_value_updated_function() failed\n");
-        return -1;
-    }
-
-    m2m_get_gyroz=M2MInterfaceFactory::create_resource(m2m_obj_list, 3200, 0, 4406,  M2MResourceInstance::FLOAT,  M2MBase::GET_PUT_ALLOWED);
-    if(m2m_get_gyroz->set_value(0) !=true)
-    {
-         printf("m2m_get_gyroz->set_value() failed\n");
-         return -1;
-    }
-    if (m2m_get_gyroz->set_value_updated_function(get_res_update)!=true){
-        printf("m2m_get_gyroz->set_value_updated_function() failed\n");
-        return -1;
-    }
-*/
-    /*m2m_get_magx=M2MInterfaceFactory::create_resource(m2m_obj_list, 3200, 0, 4407,M2MResourceInstance::INTEGER, M2MBase::GET_PUT_ALLOWED);
-    if(m2m_get_magx->set_value(0)!=true)
-    {
-        printf("m2m_get_magx->set_value() failed\n");
-        return -1;
-
-    }
-    if(m2m_get_magx->set_value_updated_function(get_res_update)!=true)
-    {
-        printf("m2m_get_magx->set_value_updated_function() failed\n");
-        return -1;
-
-    }
-
-    m2m_get_magy=M2MInterfaceFactory::create_resource(m2m_obj_list, 3200, 0, 4408,M2MResourceInstance::INTEGER, M2MBase::GET_PUT_ALLOWED);
-    if(m2m_get_magy->set_value(0)!=true)
-    {
-        printf("m2m_get_magy->set_value() failed\n");
-        return -1;
-
-    }
-    if(m2m_get_magy->set_value_updated_function(get_res_update)!=true)
-    {
-        printf("m2m_get_magy->set_value_updated_function() failed\n");
-        return -1;
-
-    }
-
-     m2m_get_magz=M2MInterfaceFactory::create_resource(m2m_obj_list, 3200, 0, 4409,M2MResourceInstance::INTEGER, M2MBase::GET_PUT_ALLOWED);
-     if(m2m_get_magz->set_value(0)!=true)
-    {
-        printf("m2m_get_magz->set_value() failed\n");
-        return -1;
-
-    }
-    if(m2m_get_magz->set_value_updated_function(get_res_update)!=true)
-    {
-        printf("m2m_get_magz->set_value_updated_function() failed\n");
-        return -1;
-
-    }*/
     // GET resource 3200/0/5501
     // PUT also allowed for resetting the resource
     m2m_get_res = M2MInterfaceFactory::create_resource(m2m_obj_list, 3200, 0, 5501, M2MResourceInstance::INTEGER, M2MBase::GET_PUT_ALLOWED);
@@ -434,7 +329,7 @@ m2m_get_accy=M2MInterfaceFactory::create_resource(m2m_obj_list, 3200, 0, 4402,  
     cloud_client->setup(network);
 
     t.start(callback(&queue, &EventQueue::dispatch_forever));
-    queue.call_every(20, read_ACCGYRO);
+    queue.call_every(100, read_ACCGYRO); // Taking a sample every 0.1 s 
 
     // Flush the stdin buffer before reading from it
     flush_stdin_buffer();
